@@ -1,0 +1,31 @@
+[project]
+name = "deep-research"
+version = "0.1.0"
+description = "Deep Research multi-agent AI workspace with FastAPI and Vue"
+requires-python = ">=3.10"
+dependencies = [
+  "langgraph",
+  "langgraph-checkpoint-redis",
+  "langgraph-checkpoint-postgres",
+  "fastapi",
+  "uvicorn[standard]",
+  "langchain",
+  "langchain-community",
+  "langchain-core",
+  "langchain-milvus",
+  "langchain-openai",
+  "dashscope",
+  "pymilvus",
+  "psycopg[binary,pool]",
+  "redis",
+  "python-dotenv",
+  "pydantic-settings",
+  "typing-extensions",
+  "pypdf",
+  "python-docx",
+  "openpyxl"
+]
+
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.build_meta"
