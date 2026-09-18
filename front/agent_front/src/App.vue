@@ -1,6 +1,9 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 
+import DemoChip from "./demo/DemoChip.vue";
+import { DEMO_CREDENTIALS, DEMO_MODE } from "./demo";
+
 type User = {
   id: number;
   email: string;
@@ -94,7 +97,12 @@ const loading = ref(false);
 const authLoading = ref(false);
 const notice = ref("");
 const errorMessage = ref("");
-const authForm = ref({ email: "", password: "", display_name: "" });
+// 演示构建下预填演示账号，访客点一下登录就能完整体验；真实环境保持空白。
+const authForm = ref({
+  email: DEMO_MODE ? DEMO_CREDENTIALS.email : "",
+  password: DEMO_MODE ? DEMO_CREDENTIALS.password : "",
+  display_name: "",
+});
 const form = ref<ProviderForm>({
   name: "DeepSeek",
   provider_type: "deepseek",
@@ -253,6 +261,15 @@ function setLocale(next: "zh" | "en") {
 }
 function authHeaders(): Record<string, string> {
   return token.value ? { Authorization: `Bearer ${token.value}` } : {};
+}
+
+/**
+ * public/ 下静态资源的带 base 地址。
+ * 部署到子路径时（GitHub Pages 的 /DeepResearch/），写死 "/xxx.svg" 会 404，
+ * 必须拼上 import.meta.env.BASE_URL。
+ */
+function assetUrl(path: string) {
+  return `${import.meta.env.BASE_URL}${path}`;
 }
 
 async function request(path: string, init: RequestInit = {}) {
@@ -1488,12 +1505,13 @@ onBeforeUnmount(() => {
   <div class="app" :data-theme="theme">
     <header class="topbar">
       <div class="brand">
-        <span class="brand-mark"><img src="/jian-shi-mark.svg" alt="" /></span>
+        <span class="brand-mark"><img :src="assetUrl('jian-shi-mark.svg')" alt="" /></span>
         <div>
           <strong>DeepResearch</strong><small>Multi-agent workspace</small>
         </div>
       </div>
       <div class="top-actions">
+        <DemoChip :locale="locale" />
         <button
           class="text-btn"
           @click="setLocale(locale === 'zh' ? 'en' : 'zh')"
@@ -1571,6 +1589,14 @@ onBeforeUnmount(() => {
             t(
               "使用邮箱和密码进入工作台",
               "Use your email and password to access the workspace",
+            )
+          }}
+        </p>
+        <p v-if="DEMO_MODE" class="demo-note">
+          {{
+            t(
+              "这是在线演示版：已预填演示账号，直接点击登录即可体验完整的多智能体研究链路。所有内容在浏览器本地生成。",
+              "This is the online demo: credentials are pre-filled. Sign in to walk through the full multi-agent research flow. Everything is generated locally in your browser.",
             )
           }}
         </p>
@@ -2148,7 +2174,7 @@ onBeforeUnmount(() => {
                   <span class="voice-orb-fallback" aria-hidden="true"></span>
                   <iframe
                     class="voice-orb-frame"
-                    src="/voice-orb.html"
+                    :src="assetUrl('voice-orb.html')"
                     title=""
                     tabindex="-1"
                     aria-hidden="true"
@@ -2184,3 +2210,17 @@ onBeforeUnmount(() => {
     </main>
   </div>
 </template>
+
+<style scoped>
+/* 仅演示构建渲染（v-if="DEMO_MODE"），因此放在组件内而不污染 main.css。 */
+.demo-note {
+  margin: 12px 0 4px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.7;
+}
+</style>

@@ -1,6 +1,8 @@
 .env
 .env.*
 !.env.example
+# 演示构建参数不含任何密钥，需要随仓库提交，保证本地与 CI 构建一致。
+!.env.demo
 config.json
 .venv/
 __pycache__/
