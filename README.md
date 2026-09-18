@@ -2,6 +2,24 @@
 
 Deep Research 是一个面向资料分析与深度检索的多智能体 AI 工作台。用户注册后，可以在网页中配置自己的模型 Provider，选择模型和推理等级，直接进行研究型问答，也可以上传文档或图片作为本轮研究输入。
 
+## 在线体验
+
+**👉 打开即用：[https://oi1784105-spec.github.io/DeepResearch/](https://oi1784105-spec.github.io/DeepResearch/)**
+
+登录页已经预填演示账号，直接点击「登录工作台」即可体验完整链路：
+
+```text
+登录 → 工作区（已预置 3 段历史研究） → 输入问题
+     → 意图识别 → 任务规划 → 网络检索 + 本地资料检索
+     → 证据判断 → 分析 → 反思 → 报告生成
+```
+
+关于在线版需要说明的三点：
+
+- 它是**纯静态演示版**，托管在 GitHub Pages 上，所有内容由浏览器本地生成，**不会调用任何真实模型或检索服务**，也不需要注册或填写 API Key。
+- 演示数据保存在浏览器 localStorage 中，随时可以点顶栏的「重置」回到初始状态。
+- 想要真实的检索与生成能力，请按下方「快速启动」在本地跑起前后端，并在 API 配置页填写自己的模型 Provider。
+
 ## 功能概览
 
 - 多智能体研究链路：意图识别、任务规划、网络检索、本地资料检索、证据判断、分析与报告生成。
@@ -26,9 +44,34 @@ Deep Research 是一个面向资料分析与深度检索的多智能体 AI 工�
 
 ![Deep Research 个人资料页面](docs/images/deep-research-profile.png)
 
+## 在线演示版是怎么做的
+
+在线版没有后端，却要能完整体验链路，因此前端内置了一个**演示层**（`front/agent_front/src/demo/`），在浏览器里接管全部网络请求。
+
+| 问题 | 做法 |
+|---|---|
+| 后端跑不了 | FastAPI + LangGraph + SQLite 无法托管在 GitHub Pages 上，因此只发布前端静态产物。 |
+| 接口怎么来 | 前端与网络交互只有 4 个点（一个 `request()` 辅助函数加三处直接 `fetch`），因此**替换 `window.fetch` 就能整体接管**，视图代码一行都没有改动。 |
+| 流式链路怎么做 | 研究接口按真实协议合成 SSE 事件流：`status` → `route` → 多条 `phase` → `final`，进度气泡逐条滚动显示多智能体节点，最后输出 Markdown 报告。 |
+| 协议为什么不能随便写 | 前端手写解析 SSE：分帧用空行、每帧必须以 `"data: "` 开头（含空格）、只认 `phase`/`status`/`route`/`final`/`error` 五种事件，且只有 `final` 会生成助手气泡。演示层严格遵守这些约定。 |
+| 错误怎么返回 | 前端错误提示只读 `detail` 字段，因此演示层的所有异常都返回 `{ "detail": "..." }` 并带正确状态码。 |
+| 数据从哪来 | 预置 1 个已启用的 Provider 与 3 段带完整报告的历史研究；新提问的报告按问题主题在本地生成，并明确标注为演示内容。 |
+| 语音怎么办 | `/tts/config` 返回 `enabled: false`，前端自动使用浏览器语音，因此不需要任何音频链路；语音球在缺少 WebGPU 的环境会降级为静态圆环。 |
+
+演示层实现分布在 5 个文件里，都不依赖 Vue，可单独测试：`index.ts`（fetch 垫片与路由）、`store.ts`（内存库与业务规则）、`content.ts`（预置数据与报告生成）、`types.ts`（数据结构）、`DemoChip.vue`（顶栏演示标记）。
+
 ## 技术栈
 
 后端使用 Python、FastAPI、Uvicorn、SQLite、Pydantic Settings、LangChain 和 LangGraph；研究链路按节点编排多智能体流程。前端使用 Vue 3、TypeScript 和 Vite。文件解析使用 pypdf、python-docx 和 openpyxl。系统默认使用 SQLite 和内存 Checkpointer，也预留 Redis、PostgreSQL、Milvus 等扩展配置。
+
+| 层次 | 技术 |
+|---|---|
+| 前端 | Vue 3、TypeScript、Vite |
+| 后端 | Python、FastAPI、Uvicorn、Pydantic Settings |
+| 智能体编排 | LangChain、LangGraph（按节点编排的研究链路） |
+| 数据与存储 | SQLite、内存 Checkpointer（预留 Redis / PostgreSQL / Milvus） |
+| 文件解析 | pypdf、python-docx、openpyxl |
+| 在线演示版 | GitHub Pages、GitHub Actions、浏览器端接口模拟层 |
 
 ## 快速启动
 
@@ -135,6 +178,26 @@ npm run build
 
 构建结果位于 front/agent_front/dist。Nginx 应将 /api 和 /health 转发到后端，将其他路径回退到 dist/index.html。
 
+### 在线演示版（GitHub Pages）
+
+演示版由 [`.github/workflows/deploy-pages.yml`](.github/workflows/deploy-pages.yml) 自动构建发布：推送到 `main` 且改动涉及前端时触发，也可以在 Actions 页面手动运行。
+
+```bash
+cd front/agent_front
+npm ci
+npm run type-check
+npm run build:demo     # 等价于 vite build --mode demo
+```
+
+构建参数放在 `.env.demo` 中，本地与 CI 使用同一份配置：
+
+| 变量 | 作用 |
+|---|---|
+| `VITE_DEMO_MODE` | 打开演示模式，由浏览器本地的模拟层接管全部接口 |
+| `VITE_BASE` | 发布子路径，Pages 项目站点需要 `/<repo>/` |
+
+`public/` 下的静态资源（图标、语音球页面）通过 `import.meta.env.BASE_URL` 拼接路径，因此在子路径下也能正确加载。要让同一个代码库连真实后端，只要不带 demo 模式构建（`npm run build`）即可。
+
 ## 配置说明
 
 | 配置 | 作用 |
@@ -155,6 +218,8 @@ npm run build
 
 项目已通过 .gitignore 排除 .env、数据库、WAL 文件、上传目录、日志、虚拟环境、node_modules 和前端构建产物。Provider 密钥在服务端加密保存，前端列表不会回显原始密钥。附件仅用于当前研究请求，完成或失败后会自动清理。发布仓库前仍应检查 git status，并确认没有手动强制添加上述文件。
 
+在线演示版的数据全部在浏览器本地生成，与真实后端无关；它只用于展示交互与页面结构，不代表真实模型或检索质量。
+
 ## 常见问题
 
 1. 页面打不开：确认后端 8000 和前端 5173 均已启动，检查浏览器访问的地址和防火墙规则。
@@ -163,7 +228,8 @@ npm run build
 4. 研究请求提示没有 Provider：登录后进入 API 配置，保存并启用至少一个 Provider。
 5. Fish Audio 返回 402：通常是账户余额或 credit 不足，需要在服务商侧充值或更换可用音色服务。
 6. 上传失败：检查扩展名、文件大小和后端依赖；单次最多上传 5 个文件，单文件最大 10 MB。
+7. 在线演示版没有回答：刷新页面重试；若仍无响应，点顶栏「重置」恢复初始演示数据。
 
 ## 联系方式
 
-微信：Sane_926
+维护者：Sane_926
