@@ -1,0 +1,83 @@
+name: Deploy online demo to GitHub Pages
+
+# 把前端构建成「纯静态演示版」并发布到 GitHub Pages。
+#
+# 演示版不依赖任何后端：所有接口由浏览器本地的模拟层接管
+# （见 front/agent_front/src/demo），因此可以直接托管在 Pages 上。
+# 真实后端仍需要 FastAPI + LangGraph + 模型接口，请参考 DEPLOYMENT.md。
+#
+# 说明：这个前端没有使用 vue-router，只有一个页面通过内部状态切换视图，
+# 因此不需要为客户端路由准备 404 回退页。
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'front/agent_front/**'
+      - '.github/workflows/deploy-pages.yml'
+      - 'README.md'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# 同一时间只允许一个发布流程，新的推送会取消排队中的旧任务。
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build demo bundle
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          # package.json 的 engines 要求 ^20.19 或 >=22.12
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: front/agent_front/package-lock.json
+
+      - name: Install dependencies
+        working-directory: front/agent_front
+        run: npm ci
+
+      - name: Type check
+        working-directory: front/agent_front
+        run: npm run type-check
+
+      - name: Build static demo
+        working-directory: front/agent_front
+        # 构建参数放在 .env.demo 里（演示模式 + Pages 子路径），
+        # 保证本地 `npm run build:demo` 与 CI 完全一致。
+        run: npm run build:demo
+
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+        with:
+          # 首次发布前需要在仓库 Settings → Pages 里把 Source 设为 "GitHub Actions"。
+          # 流水线自带的 GITHUB_TOKEN 没有创建站点的权限，无法代替这一步。
+          enablement: true
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: front/agent_front/dist
+
+  deploy:
+    name: Deploy to GitHub Pages
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy
+        id: deployment
+        uses: actions/deploy-pages@v4
